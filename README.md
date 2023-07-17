@@ -216,5 +216,148 @@ ConfigurationTest를 하다가 강의 처럼 memberRepository가 동일하지 �
 static은 컴파일 타임에 올리는 것이고 @Bean에 등록을 하는 것은 런타임시에 결정이 되는 것이다. 그래서 static으로 된 메소드는 @Bean을 써도 proxy되지가 않아서 우회해서 순수한 자바 객체가 만들어진다.
 그래서 의존성 주입이 되지 않으므로 매번 새로운 객체가 나오는 것이다.
 
+---
+
+컴포넌트 스캔과 의존관계 자동 주입
+여태까지 우리는 @Bean이나 XML을 통해 설정 정보에 직접 등록할 스프링 빈을 나열했었다.
+
+ 스프링에 빈이 많아질수록 반복 코드도 많아지기 때문에 스프링에서 자동으로 빈으로 등록하는 컴포넌트 스캔을 사용해보자.
+
+* @Configuration 아래에 @ComponentScan을 추가하자
+여태까지 우리가 다룬 예제에 여러개의 @Configuration이 있는데 이 것도 스캔되면서 등록이 되므로 빼주어야한다
+
+-> `excludeFilters = @ComponentScan.Filter(type= FilterType./ANNOTATION/,classes = Configuration.class)`
+
+* @Component가 붙은 클래스를 스캔해서 Bean에 등록한다
+* 우리는 원래 AppConfig에서 의존관계를 주입 했었다. 하지만 이제는 컴포넌트를 통해 자동으로 빈에 올린다. 그러면 의존 관계 주입은 어떻게 할 수 있을 까??
+
+-> 자동 의존 관계 주입이 가능하도록 생성자에 @Autowired 어노테이션을 추가해주면 해결된다.
+
+* 스프링 빈의 기본이름은 클래스명을 사용하되 맨 앞글자만 소문자로 변경한다.
+* MemberServiceImpl -> memberServiceImpl
+* 직접 지정도 가능하다 @Component(“이름”)
+
+* 생성자에 @Autowired를 지정하면 스프링 컨테이너가 자동으로 해당 스프링 빈을 찾아서 주입한다.
+* *기본 조회 전략은 타입이 같은 빈*을 찾는다.
+* 자동 컴포넌트 스캔 시 basePackages를 통해 스캔 시작하는 위치를 정해줄 수 있다. 없으면 모든 자바 코드를 다 탐색해야한다.
+* basePackagesClass를 통해 특정 클래스부터 찾을 수 있다
+	* 만약에 클래스를 지정하지 않으면?? -> @ComponentScan을 붙인 패키지부터 시작한다.
+
+> 가장 권장되는 방법은 설정 정보 클래스의 위치를 프로젝트 최상단에 두는 것
+
+처음에 프로젝트 만들면 최상단에 있는 CoreApplication이 보일 것이다. 여기에 SpringbootApplication이 있는데 여기에 들어가보면 ComponentScan이 존재한다.
+
+
+## 컴포넌트 스캔 기본 대상
+* @Component : 컴포넌트 스캔에 사용
+* @Controller : 스프링 MVC 컨트롤러에서 사용
+* @Service: 스프링 비즈니스 로직에서 사용
+* @Reposiotry : 스프링 데이터 접근 계층에서 사용
+* @Configuration : 스프링 설정 정보에서 사용
+
+자동 빈 등록 vs 자동 빈 등록 -> 충돌
+수동 빈 등록 vs 자동 빈 등록 -> 수동 빈이 우선권을 가진다
+자동빈을 오버라이딩 해버린다.
+
+의존관계 주입 방법
+1. 생성자 주입: 생성자 호출 시점에 1번만 호출되는 것을 보장. 생성자가 단 한개만 있으면 @Autowired를 빼도 된다.
+2. 수정자(Setter) 주입 : 원래 필드를 수정할 때는 set필드명으로 쓴다. 여기에 Autowired를 사용하면 된다. 선택, 변경이 가능한 경우에 사용한다.
+3. 필드 주입 : 실제 필드에 바로 주입을 시키는 것. 외부에서 변경이 불가능해 테스트하기가 어렵다.
+4. 일반 메서드 주입
+
+---
+* 주입할 스프링 빈이 없어도 동작해야 할 때가 있다.
+1. @Autowired(required = false)로 지정
+	* 의존관계가 없기 때문에 메소드 자체가 호출이 되지 않는다.
+2. @Nullable : 호출은 되지만 반환 값은 null
+3. @Optional<> : Optional.empty
+---
+## 왜 생성자 주입을 권장하는가?
+> 불변
+먼저 대부분의 의존관계는 프로그램 종료 전까지 변경하지 않는게 좋다.
+
+수정자 주입으로 의존관계를 주입하면 해당 메소드를 public으로 공개를 해야한다.
+
+> 누락
+프레임워크 없이 순수하게 자바 코드로 단위 테스트를 하는 경우 수정자 주입을 사용하면 순수한 자바 코드 테스트에서 각 코드의 의존성을 알아보기 어렵다.
+
+만약에 생성자 주입으로 구성이 되어있다면 컴파일 단에서 오류가 뜰 것이다.
+
+> final 키워드를 사용할 수 있다
+final 키워드는 한번만 입력이 가능하므로 생성자 주입을 통해 final 키워드를 사용할 수 있따.
+그리고 생성자에서 코드가 누락이 되었다면 내가 해당 생성자 변수를 final로 지정했으면 컴파일 단에서 오류를 확인할 수 있다.
+
+---
+Lombok 라이브러리를 사용해서 getter나 setter 코드를 짜지 말자.
+
+* @Getter, @Setter 사용하면 끝!!!
+* @RequiredArgsConstructor : 내 클래스 내에 final 변수들을 가지고 생성자를 만들어준다.
+	* 이 때 변수 나열하는 거에 유의해야 할 듯. 내가 변수 나열한 대로 생성자가 만들어지기 때문에 다른 클래스에서 호출할 시 해당 순서대로 작성해야한다.
+---
+## 조회한 빈이 2개 이상일 때
+우리가 만들었던 DiscountPolicy를 보면 해당 추상화의 구현체로 RateDiscountPolicy와 FixDiscountPolicy가 있다. 여기서 두 정책을 @Component로 등록을 하면 조회 시 오류가 뜬다.
+
+위 문제를 하위 타입을 직접 지정해서 해결하는 방법이 있겠지만 -> 이것은 DIP를 위반하고 유연성이 떨어진다.
+
+해결방법
+1. @Autowired 필드 명 매칭
+Autowired는 먼저 *타입 매칭을 시도*하고, 이때 여러 빈이 있으면 *필드 명, 파라메터 명으로 빈 이름을 추가 매칭*한다.
+
+즉 생성자의 파라메터 명을 내가 원하는 클래스의 이름으로 바꾸면 된다. discountPolicy -> rateDiscountPolicy
+2. @Qualifier -> @Qualifier끼리 매칭
+추가 구분자를 붙여주는 방법. 추가적인 방법을 제공하는 것이지 빈 이름을 변경하는 것이 아니다.
+3. @Primary 사용 : 우선순위를 정하는 방법. 해당 어노테이션이 붙어있는 구현체가 빈으로 선택된다.
+
+
+코드에서 자주 사용하는 메인 데이터베이스의 커넥션을 획득하는 스프링 빈이 있고, 코드에서 특별한 기능으로 가끔 사용하는 서브 데이터베이스 커넥션을 획득하는 스프링 빈이 있다고 할 때, 메인으로 사용하는 것은 @Primary, 서브 데이터베이스는 @Qualifier를 지정해서 깔끔하게 유지할 수 있다.
+
+우선순위의 경우 Quailfier가 더 높다.
+
+* Qualifier(“이름”) 에서 발생할 수 있는 문제점
+문자열의 경우 컴파일 타임에서 오류가 검출되지 않기 때문에 이름이 잘못들어가도 찾지 못하는 경우가 있다.
+
+이를 방지하기 위해 해당 이름을 Annotation으로 정의를 하면된다.
+
+그 뒤로 해당 어노테이션이 필요한 클래스나 필드에 @이름을 추가해주면 된다.
+
+Annotation은 상속의 개념이 없다. 그냥 어노테이션을 합쳐서 사용하는 기능은 스프링에서 지원하는 기능이다.
+---
+## 조회한 빈이 모두 필요할 때, List, Map
+위의 예시로 우리가 할인 정책이 2개 다 필요한 경우가  있다.
+```java
+
+static class DiscountService {
+    private final Map<String, DiscountPolicy> policyMap;
+    private final List<DiscountPolicy> policies;
+
+    @Autowired
+    public DiscountService(Map<String, DiscountPolicy> policyMap, List<DiscountPolicy> policies) {
+        this.policyMap = policyMap;
+        this.policies = policies;
+        System.out.println("policyMap = " + policyMap);
+        System.out.println("policies = " + policies);
+    }
+
+    public int discount(Member member,int price ,String discountCode){
+        DiscountPolicy discountPolicy = policyMap.get(discountCode);
+        return discountPolicy.discount(member, price);
+    }
+}
+Map을 사용해서 의존성 주입을 받을 때 2개의 할인 정책 빈을 모두 받고, 특정 빈을 찾을 때는 Map.get을 통해 찾는다.
+```
+
+---
+## 자동 vs 수동 빈 등록
+먼저 애플리케이션의 업무에 대해서 알아야 한다.
+애플리케이션 업무는 크게 2가지로 나누어진다.
+1. 비즈니스 로직 빈 : 웹을 지원하는 컨트롤러, 핵심 비즈니스 로직이 있는 서비스, 데이터 계층의 로직을 처리하는 리포지토리 등이 비즈니스 로직이다. 비즈니스 요구사항을 개발할 때 추가되거나 변경된다.
+2. 기술 지원 빈: 기술적인 문제나 공통 관심사(AOP)를 처리할 때 주로 사용된다. 데이터 베이스 연결, 공통 로그 처리 처럼 업무 로직을 지원하기 위한 하부 기술이나 공통 기술이다.
+
+* 비즈니스 로직의 경우, 어느 정도 유사한 패턴이 있어서, 자동 기능을 적극 사용하는 것이 좋다.
+* 기술 지원 로직은 수가 적고, 애플리케이션에 전반에 걸쳐서 광범위하게 영향을 미치지만, 적용이 잘 되고 있는 지 파악하기  어려워 가급적 수동 빈으로 등록해서 명확히 드러내는 것이 좋다.
+
+* 물론 비즈니스 로직에서도 다형성을 적극 활용한다면 수동 빈으로 추가하는 경우도 있다. 예를 들어 DiscountService의 코드만 보고 할인 정책에 무슨 정책이 있는 지 한번에 알아차리기가 어렵다. 이럴 때 수동으로 2개의 할인 정책을 등록해서 알아보기 쉽게 할 수 있고, 자동으로 추가할 경우 특정 패키지에 같이 묶어 두는것이 좋다.
+
+
 
 
